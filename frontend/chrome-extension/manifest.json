@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Text Tools Floating Menu",
+  "name": "Smart Text Tools",
   "version": "1.0",
-  "description": "Text processing tools with floating menu",
-  "permissions": ["activeTab", "scripting"],
+  "description": "Advanced text processing tools with translation support",
+  "permissions": ["activeTab", "scripting", "clipboardWrite"],
   "host_permissions": ["https://generativelanguage.googleapis.com/*"],
   "content_scripts": [
     {

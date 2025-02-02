@@ -63,6 +63,26 @@ const App: React.FC = () => {
     }
   }, [socket, sessionToken]);
 
+  const downloadExtension = async () => {
+    try {
+      const response = await axios.get(
+        "http://localhost:5000/download-chrome-extension",
+        {
+          responseType: "blob", // Get as a file
+        }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "chrome-extension.zip");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Download failed:", error);
+    }
+  };
+
   const fetchToken = async () => {
     try {
       const response = await axios.post<{ token: string }>(
@@ -189,6 +209,14 @@ const App: React.FC = () => {
           >
             <History size={18} />
             <span>{showHistory ? "Hide History" : "Show History"}</span>
+          </button>
+
+          {/* ADD THE DOWNLOAD BUTTON HERE */}
+          <button
+            onClick={downloadExtension}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-800 transition"
+          >
+            Download Chrome Extension
           </button>
         </div>
 
