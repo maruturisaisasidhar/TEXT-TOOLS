@@ -5,10 +5,6 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 const Session = require("./models/session");
 
-const fs = require("fs");
-const archiver = require("archiver");
-const path = require("path");
-
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -96,31 +92,13 @@ app.post("/get-history", async (req, res) => {
   }
 });
 
+// Google Drive direct download link route
 app.get("/download-chrome-extension", (req, res) => {
-  const folderPath = path.join(
-    __dirname,
-    "Texttools/frontend/chrome-extension"
+  // Redirect to Google Drive download link
+  res.redirect(
+    "https://drive.google.com/uc?export=download&id=1xatQTHY4wysNuULccTlFMWb40Gz4SUzd"
   );
-  const zipFilePath = path.join(__dirname, "chrome-extension.zip");
-
-  // Create zip file
-  const output = fs.createWriteStream(zipFilePath);
-  const archive = archiver("zip", { zlib: { level: 9 } });
-
-  output.on("close", () => {
-    res.download(zipFilePath, "chrome-extension.zip", () => {
-      fs.unlinkSync(zipFilePath); // Delete zip after download
-    });
-  });
-
-  archive.pipe(output);
-  archive.directory(folderPath, false);
-  archive.finalize();
 });
 
 const PORT = 5001; // Change to a free port
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-// const PORT = 5001; // Change to any free port
-
-// app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

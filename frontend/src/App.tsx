@@ -40,6 +40,12 @@ const App: React.FC = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [showHistory, setShowHistory] = useState<boolean>(false);
 
+  const downloadExtension = () => {
+    const extensionUrl =
+      "https://drive.google.com/file/d/1xatQTHY4wysNuULccTlFMWb40Gz4SUzd/view?usp=drive_link"; // Replace with your actual URL
+    window.location.href = extensionUrl; // Redirect to the Chrome extension download link
+  };
+
   useEffect(() => {
     const newSocket = io("http://localhost:5000");
     setSocket(newSocket);
@@ -62,26 +68,6 @@ const App: React.FC = () => {
       };
     }
   }, [socket, sessionToken]);
-
-  const downloadExtension = async () => {
-    try {
-      const response = await axios.get(
-        "http://localhost:5000/download-chrome-extension",
-        {
-          responseType: "blob", // Get as a file
-        }
-      );
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", "chrome-extension.zip");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error("Download failed:", error);
-    }
-  };
 
   const fetchToken = async () => {
     try {
