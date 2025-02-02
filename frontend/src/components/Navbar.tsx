@@ -1,5 +1,5 @@
-import React from 'react';
-import { Zap } from 'lucide-react';
+import React from "react";
+import { Zap } from "lucide-react";
 
 interface NavbarProps {
   token: string;
@@ -8,7 +8,12 @@ interface NavbarProps {
   validateToken: () => void;
 }
 
-const Navbar = ({ token, setToken, generateToken, validateToken }: NavbarProps) => {
+const Navbar = ({
+  token,
+  setToken,
+  generateToken,
+  validateToken,
+}: NavbarProps) => {
   return (
     <nav className="bg-gradient-to-r from-black to-gray-900 backdrop-blur-md shadow-lg border-b border-gray-800">
       <div className="container mx-auto px-4 py-4">

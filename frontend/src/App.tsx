@@ -1,144 +1,267 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import Navbar from './components/Navbar';
-import Dictionary from './components/Dictionary';
-import { RefreshCw, FileText, Check, Languages, Chrome } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { io, Socket } from "socket.io-client";
+import Navbar from "./components/Navbar";
+import Dictionary from "./components/Dictionary";
+import { RefreshCw, FileText, Check, Languages, History } from "lucide-react";
 
-const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyDrxnN7Xbq24DC6vlw9fLOaUQGHFOVikbs';
+interface HistoryEntry {
+  action: string;
+  timestamp: Date;
+  text?: string; // Added text property
+  task?: string; // Added task property
+  result?: string; // Added result property
+}
 
-const App = () => {
-  const [text, setText] = useState('');
-  const [result, setResult] = useState<React.ReactNode>('');
-  const [task, setTask] = useState('rephrase');
-  const [token, setToken] = useState('');
-  const [sessionToken, setSessionToken] = useState('');
-  const [extensionEnabled, setExtensionEnabled] = useState(false);
+interface ApiResponse {
+  candidates?: [
+    {
+      content?: {
+        parts?: [
+          {
+            text?: string;
+          }
+        ];
+      };
+    }
+  ];
+}
+
+const API_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyDrxnN7Xbq24DC6vlw9fLOaUQGHFOVikbs";
+
+const App: React.FC = () => {
+  const [text, setText] = useState<string>("");
+  const [result, setResult] = useState<string>("");
+  const [task, setTask] = useState<string>("rephrase");
+  const [token, setToken] = useState<string>("");
+  const [sessionToken, setSessionToken] = useState<string>("");
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [showHistory, setShowHistory] = useState<boolean>(false);
+
+  useEffect(() => {
+    const newSocket = io("http://localhost:5000");
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (socket && sessionToken) {
+      socket.emit("join_session", sessionToken);
+
+      socket.on("history_updated", (updatedHistory: HistoryEntry[]) => {
+        setHistory(updatedHistory);
+      });
+
+      return () => {
+        socket.off("history_updated");
+      };
+    }
+  }, [socket, sessionToken]);
+
+  const fetchToken = async () => {
+    try {
+      const response = await axios.post<{ token: string }>(
+        "http://localhost:5000/generate-token"
+      );
+      setToken(response.data.token);
+      setSessionToken(response.data.token);
+    } catch (error) {
+      console.error("Error fetching token:", error);
+    }
+  };
+
+  const validateToken = async () => {
+    if (!token) return;
+    try {
+      const response = await axios.post<{ history: HistoryEntry[] }>(
+        "http://localhost:5000/get-history",
+        { token }
+      );
+      setSessionToken(token);
+      setHistory(response.data.history);
+    } catch (error) {
+      console.error("Error validating token:", error);
+    }
+  };
+
+  const fetchHistory = async (token: string) => {
+    try {
+      const response = await axios.post<{ history: HistoryEntry[] }>(
+        "http://localhost:5000/get-history",
+        { token }
+      );
+      setHistory(response.data.history);
+    } catch (error) {
+      console.error("Error fetching history:", error);
+    }
+  };
 
   const handleApiCall = async () => {
+    if (!text.trim()) return;
+
     const payload = {
       contents: [{ parts: [{ text: `here is the text, ${task}: ${text}` }] }],
     };
 
     try {
-      const response = await axios.post(API_URL, payload);
-      const rawText = response.data?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response';
-      const formattedText = formatResponse(rawText);
-      setResult(formattedText);
+      const response = await axios.post<ApiResponse>(API_URL, payload);
+      const rawText =
+        response.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+        "No response";
+      setResult(rawText);
+
+      if (sessionToken) {
+        // Create detailed history entry
+        await updateHistory({
+          text: text.substring(0, 100) + (text.length > 100 ? "..." : ""), // Truncate long text
+          task,
+          result:
+            rawText.substring(0, 100) + (rawText.length > 100 ? "..." : ""),
+          action: `${task.charAt(0).toUpperCase() + task.slice(1)} operation`,
+        });
+      }
     } catch (error) {
-      console.error('API Error:', error);
-      setResult('Error fetching response');
+      console.error("API Error:", error);
+      setResult("Error fetching response");
     }
   };
 
-  const formatResponse = (rawText: string) => {
-    if (rawText.includes('*')) {
-      return (
-        <ul className="list-disc pl-6 space-y-2">
-          {rawText
-            .split('\n')
-            .filter((line) => line.trim().startsWith('*'))
-            .map((line, index) => (
-              <li key={index} className="text-gray-100">
-                {line.replace('*', '').trim()}
-              </li>
-            ))}
-        </ul>
+  const updateHistory = async (historyData: Partial<HistoryEntry>) => {
+    if (!sessionToken) return;
+
+    try {
+      const response = await axios.post<{ history: HistoryEntry[] }>(
+        "http://localhost:5000/update-history",
+        {
+          token: sessionToken,
+          ...historyData,
+        }
       );
-    }
-    return <p className="text-gray-100">{rawText}</p>;
-  };
-
-  const generateToken = () => {
-    const newToken = Math.random().toString(36).substring(2, 15);
-    setToken(newToken);
-  };
-
-  const validateToken = () => {
-    if (token) {
-      setSessionToken(token);
+      setHistory(response.data.history);
+    } catch (error) {
+      console.error("Error updating history:", error);
     }
   };
 
   const buttons = [
-    { label: 'Rephrase', task: 'rephrase', icon: RefreshCw },
-    { label: 'Summarize', task: 'summarize', icon: FileText },
-    { label: 'Grammar Check', task: 'grammar check', icon: Check },
-    { label: 'Translate', task: 'translate to Spanish', icon: Languages },
+    { label: "Rephrase", task: "rephrase", icon: RefreshCw },
+    { label: "Summarize", task: "summarize", icon: FileText },
+    { label: "Grammar Check", task: "grammar check", icon: Check },
+    { label: "Translate", task: "translate to Spanish", icon: Languages },
   ];
 
+  const toggleHistory = () => {
+    setShowHistory(!showHistory);
+  };
+
   return (
-    <div className="min-h-screen bg-[url('https://images.unsplash.com/photo-1475274047050-1d0c0975c63e?auto=format&fit=crop&q=80')] bg-cover bg-fixed">
-      <div className="min-h-screen bg-gradient-to-br from-black/98 via-gray-900/98 to-black/98 backdrop-blur-sm">
-        <Navbar token={token} setToken={setToken} generateToken={generateToken} validateToken={validateToken} />
-        
-        <div className="container mx-auto px-4 py-8">
-          {/* Chrome Extension Box */}
-          <div className="mb-8 bg-black/60 backdrop-blur-md rounded-lg p-4 border border-gray-800 shadow-lg">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <Chrome className="text-purple-400" size={24} />
-                <h2 className="text-lg font-semibold text-white">Chrome Extension</h2>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="sr-only peer"
-                  checked={extensionEnabled}
-                  onChange={() => setExtensionEnabled(!extensionEnabled)}
-                />
-                <div className="w-11 h-6 bg-gray-900 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-900"></div>
-              </label>
-            </div>
-          </div>
-
-          <div className="flex gap-6">
-            {/* Left Sidebar - Action Buttons */}
-            <div className="flex flex-col gap-3 w-48">
-              {buttons.map(({ label, task: buttonTask, icon: Icon }) => (
-                <button
-                  key={label}
-                  onClick={() => {
-                    setTask(buttonTask);
-                    handleApiCall();
-                  }}
-                  className="inline-flex items-center px-4 py-3 bg-gradient-to-r from-gray-900 to-black text-white rounded-lg hover:from-black hover:to-purple-900 transition-all duration-200 space-x-2 shadow-lg shadow-purple-500/10 hover:shadow-purple-500/20 border border-gray-800"
-                >
-                  <Icon size={18} />
-                  <span>{label}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Main Content Area */}
-            <div className="flex-1">
-              <textarea
-                className="w-full h-64 p-4 mb-6 text-white border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-900 resize-none bg-black/60 backdrop-blur-md border-gray-800 placeholder-gray-500"
-                placeholder="Enter your text here... ✨"
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-              />
-              
-              {result && (
-                <div className="bg-black/60 backdrop-blur-md rounded-lg shadow-lg p-6 border border-gray-800">
-                  <div className="prose max-w-none prose-invert">
-                    {result}
-                  </div>
-                </div>
-              )}
-
-              {sessionToken && (
-                <div className="mt-4 p-4 bg-black/80 rounded-lg border border-gray-800">
-                  <p className="text-purple-200">Current Session Token: {sessionToken}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Right Sidebar - Dictionary */}
-            <div className="w-64">
-              <Dictionary />
-            </div>
-          </div>
+    <div className="min-h-screen flex flex-col bg-gray-900">
+      <Navbar
+        token={token}
+        setToken={setToken}
+        generateToken={fetchToken}
+        validateToken={validateToken}
+      />
+      <div className="container mx-auto px-4 py-8 flex gap-6 flex-grow">
+        {/* Left Sidebar - Buttons */}
+        <div className="flex flex-col gap-3 w-48 shrink-0">
+          {buttons.map(({ label, task: buttonTask, icon: Icon }) => (
+            <button
+              key={label}
+              onClick={() => {
+                setTask(buttonTask);
+                handleApiCall();
+              }}
+              className="flex items-center px-4 py-3 bg-black text-white rounded-lg hover:bg-purple-900 transition-all duration-200 space-x-2"
+            >
+              <Icon size={18} />
+              <span>{label}</span>
+            </button>
+          ))}
+          <button
+            onClick={toggleHistory}
+            className="flex items-center px-4 py-3 bg-black text-white rounded-lg hover:bg-purple-900 transition-all duration-200 space-x-2"
+          >
+            <History size={18} />
+            <span>{showHistory ? "Hide History" : "Show History"}</span>
+          </button>
         </div>
+
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col gap-6">
+          <div className="flex-1">
+            <textarea
+              className="w-full h-48 p-4 text-white bg-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-900 resize-none"
+              placeholder="Enter your text here..."
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+            {result && (
+              <div className="bg-gray-800 rounded-lg p-6 mt-4 text-white">
+                {result}
+              </div>
+            )}
+
+            {sessionToken && (
+              <div className="mt-4 p-4 bg-gray-800 rounded-lg text-purple-200">
+                Current Session Token: {sessionToken}
+              </div>
+            )}
+          </div>
+
+          {/* Dictionary Component */}
+          <Dictionary />
+        </div>
+
+        {/* Right Sidebar - History */}
+        {showHistory && (
+          <div className="w-80 shrink-0">
+            <div className="bg-gray-800 rounded-lg p-4 sticky top-4">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-white">History</h3>
+                <span className="text-sm text-gray-400">
+                  {history.length} entries
+                </span>
+              </div>
+              <div className="space-y-4 max-h-[calc(100vh-12rem)] overflow-y-auto">
+                {history.map((entry, index) => (
+                  <div
+                    key={index}
+                    className="p-3 bg-gray-700/50 rounded-lg hover:bg-gray-700/70 transition-colors"
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <span className="font-medium text-purple-400">
+                        {entry.action}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {new Date(entry.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="text-sm space-y-2">
+                      <div>
+                        <span className="text-gray-400">Original Text: </span>
+                        <span className="text-gray-200">{entry.text}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Task: </span>
+                        <span className="text-purple-300">{entry.task}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-400">Result: </span>
+                        <span className="text-gray-200">{entry.result}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
