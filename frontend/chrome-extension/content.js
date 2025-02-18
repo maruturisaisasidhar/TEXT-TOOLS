@@ -1,6 +1,4 @@
 // content.js
-const BACKEND_URL = "https://text-tools-chrome-extensoin-backend.onrender.com";
-
 const LANGUAGES = {
   en: "English",
   es: "Spanish",
@@ -104,102 +102,22 @@ popup.innerHTML = `
 document.body.appendChild(menu);
 document.body.appendChild(popup);
 
-// Get JWT token on extension initialization
-async function getAuthToken() {
-  try {
-    // For Chrome extension, use chrome.runtime.id
-    const extensionId =
-      typeof chrome !== "undefined" && chrome.runtime
-        ? chrome.runtime.id
-        : "test-extension-id";
-
-    const response = await fetch(`${BACKEND_URL}/auth`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ extensionId }),
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to authenticate");
-    }
-
-    const data = await response.json();
-    localStorage.setItem("authToken", data.token);
-    console.log("Authentication successful");
-  } catch (error) {
-    console.error("Authentication error:", error);
-  }
-}
-
-// Initialize on load
-(async function init() {
-  await getAuthToken();
-})();
-
-// Process text with JWT authentication
+// Process text via background script
 const processText = async (text, task, targetLang = "") => {
   try {
-    const token = localStorage.getItem("authToken");
-
-    if (!token) {
-      console.error("No authentication token found");
-      return "Authentication error. Please reload the extension.";
-    }
-
-    const response = await fetch(`${BACKEND_URL}/api/process-text`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        text,
-        task,
-        targetLang,
-      }),
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage(
+        {
+          action: "processText",
+          text,
+          task,
+          targetLang,
+        },
+        (response) => {
+          resolve(response.result);
+        }
+      );
     });
-
-    if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        // Try to refresh the token and retry once
-        await getAuthToken();
-
-        const token = localStorage.getItem("authToken");
-        if (!token) {
-          return "Failed to refresh authentication. Please reload the extension.";
-        }
-
-        // Retry with new token
-        const retryResponse = await fetch(`${BACKEND_URL}/api/process-text`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            text,
-            task,
-            targetLang,
-          }),
-        });
-
-        if (!retryResponse.ok) {
-          const error = await retryResponse.json();
-          throw new Error(
-            error.error || "Failed to process text after token refresh"
-          );
-        }
-
-        const retryData = await retryResponse.json();
-        return retryData.result;
-      }
-
-      const error = await response.json();
-      throw new Error(error.error || "Failed to process text");
-    }
-
-    const data = await response.json();
-    return data.result;
   } catch (error) {
     console.error("Error:", error);
     return "Error processing text: " + error.message;
@@ -355,13 +273,3 @@ document.addEventListener("keydown", (e) => {
     menu.classList.remove("visible");
   }
 });
-
-// Token renewal process - refresh token every 6 days
-function setupTokenRenewal() {
-  // Renew token every 6 days (before 7-day expiration)
-  setInterval(async () => {
-    await getAuthToken();
-  }, 6 * 24 * 60 * 60 * 1000);
-}
-
-setupTokenRenewal();

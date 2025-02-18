@@ -14,20 +14,14 @@ const GEMINI_API =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
 
 // Middleware
-app.use(express.json());
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // For Chrome extensions, origin is the extension ID in the format:
-      // chrome-extension://[extension-id]
-      if (!origin || origin.startsWith("chrome-extension://")) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
+    origin: "*", // Allow all origins
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
+app.use(express.json()); // Add this line to parse JSON bodies
 
 // Authentication endpoint - generate a token when extension is installed
 app.post("/auth", (req, res) => {
