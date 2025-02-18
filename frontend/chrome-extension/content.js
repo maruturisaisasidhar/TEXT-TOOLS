@@ -1,5 +1,5 @@
 // content.js
-const BACKEND_URL = "http://localhost:3000"; // Update to your deployed URL when ready
+const BACKEND_URL = "https://text-tools-chrome-extensoin-backend.onrender.com";
 
 const LANGUAGES = {
   en: "English",
