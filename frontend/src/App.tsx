@@ -42,7 +42,7 @@ const App: React.FC = () => {
 
   const downloadExtension = () => {
     const extensionUrl =
-      "https://drive.google.com/file/d/1xatQTHY4wysNuULccTlFMWb40Gz4SUzd/view?usp=drive_link"; // Replace with your actual URL
+      "https://drive.google.com/file/d/1jnKv5RuSDQsv0vvGDJsChaNlr1hLvDHA/view?usp=sharing";
     window.location.href = extensionUrl; // Redirect to the Chrome extension download link
   };
 
