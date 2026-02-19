@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { io, Socket } from "socket.io-client";
 import Navbar from "./components/Navbar";
 import Dictionary from "./components/Dictionary";
 import { RefreshCw, FileText, Check, Languages, History } from "lucide-react";
@@ -8,27 +7,12 @@ import { RefreshCw, FileText, Check, Languages, History } from "lucide-react";
 interface HistoryEntry {
   action: string;
   timestamp: Date;
-  text?: string; // Added text property
-  task?: string; // Added task property
-  result?: string; // Added result property
+  text?: string;
+  task?: string;
+  result?: string;
 }
 
-interface ApiResponse {
-  candidates?: [
-    {
-      content?: {
-        parts?: [
-          {
-            text?: string;
-          }
-        ];
-      };
-    }
-  ];
-}
-
-const API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=AIzaSyDrxnN7Xbq24DC6vlw9fLOaUQGHFOVikbs";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const App: React.FC = () => {
   const [text, setText] = useState<string>("");
@@ -37,7 +21,6 @@ const App: React.FC = () => {
   const [token, setToken] = useState<string>("");
   const [sessionToken, setSessionToken] = useState<string>("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
-  const [socket, setSocket] = useState<Socket | null>(null);
   const [showHistory, setShowHistory] = useState<boolean>(false);
 
   const downloadExtension = () => {
@@ -46,33 +29,10 @@ const App: React.FC = () => {
     window.location.href = extensionUrl; // Redirect to the Chrome extension download link
   };
 
-  useEffect(() => {
-    const newSocket = io("http://localhost:5000");
-    setSocket(newSocket);
-
-    return () => {
-      newSocket.close();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (socket && sessionToken) {
-      socket.emit("join_session", sessionToken);
-
-      socket.on("history_updated", (updatedHistory: HistoryEntry[]) => {
-        setHistory(updatedHistory);
-      });
-
-      return () => {
-        socket.off("history_updated");
-      };
-    }
-  }, [socket, sessionToken]);
-
   const fetchToken = async () => {
     try {
       const response = await axios.post<{ token: string }>(
-        "http://localhost:5000/generate-token"
+        `${API_URL}/generate-token`,
       );
       setToken(response.data.token);
       setSessionToken(response.data.token);
@@ -85,8 +45,8 @@ const App: React.FC = () => {
     if (!token) return;
     try {
       const response = await axios.post<{ history: HistoryEntry[] }>(
-        "http://localhost:5000/get-history",
-        { token }
+        `${API_URL}/get-history`,
+        { token },
       );
       setSessionToken(token);
       setHistory(response.data.history);
@@ -98,8 +58,8 @@ const App: React.FC = () => {
   const fetchHistory = async (token: string) => {
     try {
       const response = await axios.post<{ history: HistoryEntry[] }>(
-        "http://localhost:5000/get-history",
-        { token }
+        `${API_URL}/get-history`,
+        { token },
       );
       setHistory(response.data.history);
     } catch (error) {
@@ -110,21 +70,18 @@ const App: React.FC = () => {
   const handleApiCall = async () => {
     if (!text.trim()) return;
 
-    const payload = {
-      contents: [{ parts: [{ text: `here is the text, ${task}: ${text}` }] }],
-    };
-
     try {
-      const response = await axios.post<ApiResponse>(API_URL, payload);
-      const rawText =
-        response.data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-        "No response";
+      const response = await axios.post<{ text: string }>(
+        `${API_URL}/api/gemini`,
+        { text, task },
+      );
+      const rawText = response.data.text || "No response";
       setResult(rawText);
 
       if (sessionToken) {
         // Create detailed history entry
         await updateHistory({
-          text: text.substring(0, 100) + (text.length > 100 ? "..." : ""), // Truncate long text
+          text: text.substring(0, 100) + (text.length > 100 ? "..." : ""),
           task,
           result:
             rawText.substring(0, 100) + (rawText.length > 100 ? "..." : ""),
@@ -142,11 +99,11 @@ const App: React.FC = () => {
 
     try {
       const response = await axios.post<{ history: HistoryEntry[] }>(
-        "http://localhost:5000/update-history",
+        `${API_URL}/update-history`,
         {
           token: sessionToken,
           ...historyData,
-        }
+        },
       );
       setHistory(response.data.history);
     } catch (error) {
