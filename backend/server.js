@@ -8,9 +8,7 @@ app.use(express.json());
 app.use(cors());
 
 // OpenRouter API configuration
-const OPENROUTER_API_KEY =
-  process.env.OPENROUTER_API_KEY ||
-  "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";
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // In-memory storage for sessions
