@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
+require("dotenv").config();
 
 const app = express();
 
@@ -10,6 +11,13 @@ app.use(cors());
 // OpenRouter API configuration
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+if (!OPENROUTER_API_KEY) {
+  console.error(
+    "ERROR: OPENROUTER_API_KEY is not set in environment variables!",
+  );
+  process.exit(1);
+}
 
 // In-memory storage for sessions
 let inMemorySessions = {};
